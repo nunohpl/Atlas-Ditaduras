@@ -2330,18 +2330,30 @@ if (window.WORLD && window.topojson) {
     style: { fillColor: '#efe9dd', fillOpacity: 1, color: '#b7ae9d', weight: 0.7 }
   }).addTo(map);
 }
-L.control.attribution({ prefix: false }).addAttribution(
-  '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a> | <a href="https://leafletjs.com" target="_blank" rel="noopener">Leaflet</a>'
-).addTo(map);
+var ATTR_ESRI = 'Tiles &copy; <a href="https://www.esri.com" target="_blank" rel="noopener">Esri</a> &mdash; Esri, DeLorme, NAVTEQ';
+var ATTR_OSM = '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>';
+L.control.attribution({ prefix: false }).addAttribution('<a href="https://leafletjs.com" target="_blank" rel="noopener">Leaflet</a>').addTo(map);
 
-var tileErrors = 0;
-var tiles = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-  subdomains: 'abcd', maxZoom: 12, noWrap: true, detectRetina: false
-}).addTo(map);
-tiles.on('tileerror', function () {
-  tileErrors++;
-  if (tileErrors === 8) toast('Não foi possível carregar o mapa-base (sem internet?). Os ícones e as fichas continuam funcionando.', 6000);
+/* Mapas-base sem chave de API. Se o primeiro falhar, troca automaticamente para o segundo. */
+var baseClaro = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+  maxZoom: 12, maxNativeZoom: 12, noWrap: true, attribution: ATTR_ESRI
 });
+var baseOsm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 12, noWrap: true, attribution: ATTR_OSM
+});
+var tileErrors = 0, activeBase = baseClaro;
+baseClaro.addTo(map);
+L.control.layers({ 'Mapa claro': baseClaro, 'OpenStreetMap': baseOsm }, null, { position: 'bottomright', collapsed: true }).addTo(map);
+map.on('baselayerchange', function (e) { activeBase = e.layer; tileErrors = 0; });
+function onTileError() {
+  tileErrors++;
+  if (tileErrors !== 8) return;
+  if (activeBase === baseClaro) {
+    map.removeLayer(baseClaro); baseOsm.addTo(map); activeBase = baseOsm; tileErrors = 0;
+    toast('O mapa-base principal não respondeu; usando OpenStreetMap.', 4500);
+  } else toast('Não foi possível carregar o mapa-base (sem internet?). Os ícones e as fichas continuam funcionando.', 6000);
+}
+baseClaro.on('tileerror', onTileError); baseOsm.on('tileerror', onTileError);
 
 /* ------------------------------ ícones flutuantes ----------------------------- */
 function pinHtml(r, i) {
@@ -2604,7 +2616,7 @@ function aboutModal() {
     '<li>O que veio depois: julgamentos, anistia, comissões da verdade, políticas de memória?</li>' +
     '<li>Que padrões se repetem entre os casos? O que explica a durabilidade ou a queda?</li></ol>' +
     '<h3>Nota metodológica</h3><p>Os números de mortes são <b>estimativas</b> e variam conforme a fonte e o que se conta (execuções, fome, guerra, doenças). Por isso cada ficha traz uma faixa de ordem de grandeza. A classificação de cada regime em um «tipo» é uma síntese didática: muitos regimes combinam traços de mais de um. A seleção não é exaustiva. Regimes «em curso» refletem informações até meados de 2026 e devem ser verificados em fontes atualizadas. Cada ícone representa o <i>tipo</i> de regime, não um símbolo próprio de cada governo.</p>' +
-    '<p style="font-size:.8rem;color:#5c534b">Mapa-base © OpenStreetMap e CARTO. Biblioteca Leaflet (BSD-2). Este arquivo é independente: não depende de nenhum serviço de IA para funcionar.</p>'
+    '<p style="font-size:.8rem;color:#5c534b">Mapa-base © Esri ou OpenStreetMap (alternável no botão de camadas). Biblioteca Leaflet (BSD-2). Este arquivo é independente: não depende de nenhum serviço de IA para funcionar.</p>'
   );
 }
 
